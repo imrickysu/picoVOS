@@ -1,0 +1,1 @@
+impact -batch quick_demo.cmd

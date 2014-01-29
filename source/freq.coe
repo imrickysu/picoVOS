@@ -1,0 +1,59 @@
+; Here is the frequency look up table for music scales
+; The output of frequency look up table ROM and the counters are 17-bit wide 
+; so that it can generate a frequency as low as 130Hz with a free running 50MHz clock.
+;
+; Counter = 50MHz / 2 / Required Frequency
+;
+;Tone	Frequency(Hz)	Counter(Dec)	Counter(Hex)
+;C		261.6 			95566 			1754D
+;D		293.7 			85121 			14C80
+;E		329.6 			75850 			12849
+;F		349.2 			71592 			117A8
+;G		392.0 			63776 			F91F
+;A		440.0 			56818 			DDF2
+;B		493.8 			50628 			C5C3
+;C*		523.2			47783 			BAA6
+;D*		587.4			42560 			A640
+;E*		659.2			37925 			9424
+;F*		698.4			35796 			8BD4
+;G*		784				31888 			7C8F
+;A*		880				28409 			6EF9
+;B*		987.6			25314 			62E1
+;*C		130.8			191131 			2EA9B
+;*D		146.85			170242 			29901
+;*E		164.8			151699 			25093
+;*F		174.6			143184 			22F50
+;*G		196				127551 			1F23F
+;*A		220				113636 			1BBE4
+;*B		246.9			101256 			18B87
+
+
+
+
+
+
+memory_initialization_radix=16;
+memory_initialization_vector= 
+1754D,
+14C80,
+12849,
+117A8,
+F91F,
+DDF2,
+C5C3,
+
+BAA6,
+A640,
+9424,
+8BD4,
+7C8F,
+6EF9,
+62E1,
+
+1F23F,
+1F23F,
+1F23F,
+1F23F,
+1F23F,
+1BBE4,
+18B87;

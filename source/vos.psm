@@ -1,0 +1,777 @@
+             ;*******************
+             ;Port
+             ;*******************
+             ; VGA Ports
+             CONSTANT vga_addrc_port, 01
+             CONSTANT vga_addrrl_port, 02
+             CONSTANT vga_addrrh_port, 04
+             CONSTANT vga_din_port, 08
+             CONSTANT vga_we_port, 0F	
+             ;CONSTANT key_port, 80
+             ;CONSTANT int_arb_port, 40             ;interrupt arbitration
+             
+             ; UART port for test
+             CONSTANT uart_tx_port, F0
+             
+             ; Keyboard port
+             CONSTANT kbd_count_port, 10
+             CONSTANT kbd_data_port, 11
+             
+             ; Music box port
+             CONSTANT musicbox_data_port, 20
+             CONSTANT musicbox_enable_port, 21
+             CONSTANT musicbox_reset_port, 22
+             
+             ; Reset Port
+             CONSTANT reset_port, 30
+             
+             ; ScoreRAM Port
+             CONSTANT score_row_port, 40 ;3 bit useful
+             CONSTANT score_digit_port, 41 ; 4 bit useful
+             CONSTANT score_reg_en_port, 42 ; 8 bit useful
+             CONSTANT score_we_port, 43
+             
+             ; Audio output port
+             CONSTANT freq_addr_port, 50 ; 6 bit useful
+             CONSTANT counter_load_num_port, 51 ; 3 bit useful
+             CONSTANT audio_out_en_port, 58 ;1 bit useful
+             CONSTANT audio_out_sel_port, 54 ;3 bit useful
+             
+             ; Speed port
+             CONSTANT speed_wr_port, 60 ;4 bit useful
+             CONSTANT speed_rd_port, 61
+             
+             ; logo ram port
+             CONSTANT logo_color_port, 70
+             CONSTANT logo_disp_block_port, 71
+             
+             ;****************
+             ;Scratch Pad
+             ;****************
+
+             CONSTANT speed, 38
+             CONSTANT score0, 3C
+             CONSTANT score1, 3B
+             CONSTANT score2, 3A
+             CONSTANT score3, 39
+             
+             CONSTANT audio_time_counter, 3D
+             
+             
+            ; main_flag content
+             CONSTANT main_flag_logo, 01
+             CONSTANT main_flag_hit, 02
+             CONSTANT main_flag_move_column, 04
+             CONSTANT main_flag_cool, 08
+             CONSTANT main_flag_miss, 10
+             ;CONSTANT main_flag_, 20
+             CONSTANT main_flag_audio, 40
+             CONSTANT main_flag_score_carry, 80
+;
+; NAMEREG define
+            
+             ;NAMEREG s0, tempreg
+             ;NAMEREG s1, tempreg2
+             NAMEREG s2, vga_addrc   ;address column (5 bit useful, 32 columns)
+             NAMEREG s3, vga_addrrl  ;address row low (1 bit useful)
+             NAMEREG s4, vga_addrrh  ;address row high (8 bit useful)
+             NAMEREG s5, key
+             NAMEREG s6, main_flag   ;bit0 - 
+                                     ;bit1 - 
+                                     ;bit2 - move_column_flag
+                                     ;bit3 - 
+                                     ;bit4 - 
+                                     ;bit5 - 
+                                     ;bit6 - audio_flag
+                                     ;bit7 - score_carry_flag
+             NAMEREG s7, vga_din  
+             NAMEREG s8, key_point
+             NAMEREG s9, kbd_count    
+             NAMEREG sA, kbd_data    
+             NAMEREG sB, musicbox_data  
+             NAMEREG sC, audio_sel 
+                       
+             
+             ;
+             ; 
+             ;
+;********************************************
+; Initialize
+;******************************************** 
+
+      CALL clear_video_ram
+      CALL clear_score
+      ; display_logo
+      LOAD s0, 00
+      STORE s0, audio_time_counter
+      OUTPUT s0, logo_disp_block_port
+      LOAD s0, 07  ;rgb=010 green
+      OUTPUT s0, logo_color_port
+      OR main_flag, main_flag_logo
+            
+init: LOAD vga_din   , FF
+      LOAD vga_addrc , 00
+      LOAD vga_addrrl, 00
+      LOAD vga_addrrh, 00 
+      LOAD main_flag, 00 
+      LOAD key_point, 00
+
+init_SPad: ;init all SPad key info to FF
+           LOAD s0, FF
+           STORE s0, (key_point)
+           ADD key_point, 01
+           COMPARE key_point, 39
+           JUMP C, init_SPad
+           
+
+           LOAD s0, 00
+           STORE s0, score0
+           STORE s0, score1
+           STORE s0, score2
+           STORE s0, score3
+           
+enable_musicbox:   LOAD s0, 01
+                   OUTPUT s0, musicbox_enable_port           
+              
+
+ ENABLE INTERRUPT
+             
+;********************************************
+; main loop
+;********************************************             
+      
+            
+   main_loop: JUMP main_loop         ;wait for interrupt
+   
+   
+   
+   
+;********************************************
+; Music Box 
+; Get music box data 
+; 
+;********************************************      
+musicbox_get_data: INPUT s0, musicbox_data_port   
+;if LSB = 0, it's data, store it to reg musicbox_data
+check_musicbox_data: 
+                     
+                     TEST s0, 01  ; if LSB=0, this is an music data
+                     JUMP NC, store_musicbox_data ;if LSB = 0
+; else - instruction decode
+                     TEST s0, 02  ;if s0[1:0] = 01
+                     JUMP NC, freq_data
+                     TEST s0, 04  ; if s0[2:0] = 011
+                     JUMP NC, audio_counter_sel
+                     COMPARE s0, FF ; if s0 = FF
+                     JUMP Z, music_data_end; if data is FF, there's no more data
+                     ;if not above
+                     RETURN
+                     
+                   
+;*******************************
+; Sub routines:                     
+; music box data                                            
+store_musicbox_data: LOAD musicbox_data, s0
+                     ;find 1 in musicbox_data
+                     LOAD s0, 80
+                     LOAD vga_addrc, 00
+check_addrc:                      
+                     COMPARE vga_addrc, 08
+                     JUMP NZ, find_bit1 ;if not equal
+                     ; if equal
+                     AND main_flag, FE ; unset Vsync flag
+                     RETURN
+                     
+ 
+find_bit1:           TEST musicbox_data, s0
+                     ;if there's an 1
+                     CALL C, find_first_ff
+                     ;else
+                     SR0 s0
+                     ADD vga_addrc, 01
+                     JUMP check_addrc
+                     
+find_first_ff:       ;
+                     CALL addrc2key ; get init key_point
+                     LOAD s1, key_point
+                     ADD s1, 08  ; get end key_point
+                     
+find_key_loop:       FETCH vga_addrrh, (key_point)
+                     ; if vga_addrrh = FF
+                     COMPARE vga_addrrh, FF                      
+                     JUMP  NZ, next_key ;if not equal to FF 
+                     ; if equal to FF
+write2ram:           LOAD sF, 00
+                     STORE sF, (key_point)
+                     ;jump to next column
+jump2next_column:    RETURN
+                     
+next_key:            ADD key_point, 01
+                     COMPARE key_point, s1 ; if key_point < 38
+                     JUMP C, find_key_loop      ; do key_loop
+                     RETURN
+                     
+
+;submodule - key2addrc
+;input: key_point
+;output; vga_addrc
+;tempreg: s0                     
+key2addrc:           LOAD s0, key_point
+                     SR0 s0
+                     SR0 s0
+                     SR0 s0
+                     LOAD vga_addrc, s0
+                     RETURN                     
+addrc2key:           LOAD key_point, vga_addrc
+                     SL0 key_point
+                     SL0 key_point
+                     SL0 key_point
+                     RETURN
+;**********music box data end*****************
+
+
+;**********freq data begin**********
+freq_data:  OUTPUT s0, freq_addr_port
+
+RETURN
+;**********freq data end**********
+
+
+
+
+;**********audio counter select begin**********                       
+audio_counter_sel:  OUTPUT s0, counter_load_num_port
+                    LOAD s0, E0  ; 111000000
+                    OUTPUT s0, counter_load_num_port ; de-select
+                    
+
+RETURN
+;**********audio counter select begin**********    
+
+
+
+;********Music Data End begin********
+music_data_end: LOAD s0, 00
+                OUTPUT s0, musicbox_enable_port
+
+
+
+RETURN
+;********Music Data End end**********
+
+
+
+
+
+
+               
+                        
+;********************************************
+; Keyboard
+; a simple implementation - read one word one time
+;********************************************   
+;kbd_get_count: ;INPUT kbd_count, kbd_count_port
+               ;OUTPUT kbd_count, uart_tx_port 
+kbd_get_data:  
+               INPUT s0, kbd_count_port
+               
+               COMPARE s0, 00
+               ; if there are no data, jump to end
+               JUMP Z, kbd_get_data_end
+               ; if counter is not 00
+               OUTPUT kbd_data, kbd_data_port ; output a read pluse
+               INPUT kbd_data, kbd_data_port ; read in kbd_data
+               
+               
+               COMPARE kbd_data, 1C ;A
+               JUMP Z, kbd_match_0
+               COMPARE kbd_data, 1B ; S
+               JUMP Z, kbd_match_1
+               COMPARE kbd_data, 23 ; D
+               JUMP Z, kbd_match_2
+               COMPARE kbd_data, 29 ;Space
+               JUMP Z, kbd_match_3
+               COMPARE kbd_data, 42 ; K
+               JUMP Z, kbd_match_4
+               COMPARE kbd_data, 4B ; L
+               JUMP Z, kbd_match_5
+               COMPARE kbd_data, 4C ; ;
+               JUMP Z, kbd_match_6
+               COMPARE kbd_data, 76 ; ESC
+               JUMP Z, reset_proc
+               COMPARE kbd_data, 75 ; Up
+               JUMP Z, speed_up
+               COMPARE kbd_data, 72 ; Down
+               JUMP Z, speed_down
+
+               ; if not equal to previous entries
+               JUMP kbd_once_end
+
+kbd_match_0:   LOAD vga_addrc, 00
+               LOAD audio_sel, 00
+               JUMP lut_end
+kbd_match_1:   LOAD vga_addrc, 01
+               LOAD audio_sel, 01
+               JUMP lut_end
+kbd_match_2:   LOAD vga_addrc, 02
+               LOAD audio_sel, 02
+               JUMP lut_end
+kbd_match_3:   LOAD vga_addrc, 03
+               LOAD audio_sel, 03
+               JUMP lut_end
+kbd_match_4:   LOAD vga_addrc, 04
+               LOAD audio_sel, 04
+               JUMP lut_end
+kbd_match_5:   LOAD vga_addrc, 05
+               LOAD audio_sel, 05
+               JUMP lut_end
+kbd_match_6:   LOAD vga_addrc, 06
+               LOAD audio_sel, 06
+               JUMP lut_end  
+                                                                                                      
+
+lut_end:
+; set audio flag and time counter
+               OR main_flag, 40 ; set flag
+               LOAD s0, 00
+               STORE s0, audio_time_counter
+               OUTPUT audio_sel, audio_out_sel_port
+              
+
+
+
+
+;
+; compare first row with D0 to calculate the score              
+               ; fetch first row of certain column
+               CALL addrc2key
+               FETCH vga_addrrh, (key_point)
+               
+               ; get score new version
+               COMPARE vga_addrrh, C7 ; D0 - 9
+               JUMP C, score_0
+               COMPARE vga_addrrh, CA ; D0 - 6
+               JUMP C, score_2
+               COMPARE vga_addrrh, D3 ; D0 + 3
+               JUMP C, score_4
+               COMPARE vga_addrrh, D6 ; D0 + 6
+               JUMP C, score_2
+               ; else
+               JUMP score_0
+               
+               
+score_0:  LOAD s0, 03
+          OUTPUT s0, logo_disp_block_port
+          LOAD s0, 04
+          OUTPUT s0, logo_color_port
+          LOAD s0, 00          
+          JUMP get_score_end
+
+score_2:  LOAD s0, 01
+          OUTPUT s0, logo_disp_block_port
+          LOAD s0, 02
+          OUTPUT s0, logo_color_port
+          LOAD s0, 02  
+
+          JUMP get_score_end
+          
+score_4:  LOAD s0, 02
+          OUTPUT s0, logo_disp_block_port
+          LOAD s0, 03
+          OUTPUT s0, logo_color_port
+          LOAD s0, 04  
+
+          JUMP get_score_end
+
+               ; s0 transfer the current key score to add score routine
+get_score_end:
+;**************************************************
+               ; add score routine
+               LOAD sF, 03
+               CALL cacal_score0
+score_digit_loop:  SUB sF, 01
+               COMPARE sF, 00
+               JUMP Z, score_end
+               CALL cacal_score123
+               CALL wr_score
+               JUMP score_digit_loop
+    
+score_end:     CALL cacal_score123
+               CALL wr_score
+               RETURN
+;**********END of keyboard routine*****************              
+               
+               
+cacal_score0:  FETCH s1, score0
+               ADD s1, s0
+               COMPARE s1, 0A
+               JUMP C, normal_score0; s1 < 0A, do nothing
+               SUB s1, 0A ; if s1 >= 0A, s1 = s1 - 0A
+               ;set_carry:
+               ;LOAD s0, 00
+               ;COMPARE s0, 01 ; set CARRY flag and reset ZERO flag
+               OR main_flag, 80
+               JUMP store_score0
+normal_score0: AND main_flag, 7F ; register sX unaffected, CARRY flag cleared               
+store_score0:  STORE s1, score0
+               ;OUTPUT s1, uart_tx_port
+               CALL wr_score    
+               RETURN
+               
+cacal_score123:
+               LOAD s0, 39
+               ADD s0, sF              
+               FETCH s1, (s0)
+               TEST main_flag, 80
+               JUMP C, score_carry_add ; if carry flag = 1
+               JUMP normal_score123 ; if carry flag = 0
+score_carry_add: ADD s1, 01
+               COMPARE s1, 0A
+               JUMP C, normal_score123; s1 < 0A, do nothing
+               SUB s1, 0A ; if s1 >= 0A, s1 = s1 - 0A
+               ;set_carry:
+               ;LOAD s0, 00
+               ;COMPARE s0, FF ; set CARRY flag and reset ZERO flag
+                              ; because s0 = 39, 3A, 3B, 3C
+               OR main_flag, 80
+               JUMP store_score123
+normal_score123: AND main_flag, 7F ; register sX unaffected, CARRY flag cleared               
+store_score123:  STORE s1, (s0)
+              ;OUTPUT s1, uart_tx_port               
+              ; JUMP kbd_once_end
+               RETURN
+               
+               
+               
+;************Write Score to VGA******************** 
+;Require data:
+;      s1 - the score to display
+;      sF - the digit to display(0-3)
+;Using regs:
+;      s0 - loop counter
+;      s1 - score to display +4
+;      sF - score digit (0-3)     
+wr_score:      LOAD s0, 00 
+                ADD s1, 04
+wr_score_comp: COMPARE s0, 10
+                JUMP NC, wr_score_end
+                OUTPUT s0, score_row_port
+                ; to read
+                OUTPUT s1, score_digit_port
+                OUTPUT s1, score_reg_en_port
+                ;LOAD sF, score_digit
+                ; to write
+                OUTPUT sF, score_digit_port
+                OUTPUT sF, score_we_port
+                ADD s0, 01
+                JUMP wr_score_comp
+wr_score_end:  RETURN              
+;*************END of wr_score***********************               
+                          
+      
+kbd_once_end:      JUMP kbd_get_data
+kbd_get_data_end:  RETURN 
+   
+
+
+
+
+
+
+;**********************************
+; Reset process
+;**********************************
+
+reset_proc: OUTPUT s0, reset_port
+            JUMP main_loop
+   
+   
+;**********************************
+; Speed Change process
+;**********************************   
+speed_up:      INPUT s0, speed_rd_port ;fetch speed
+               COMPARE s0, 0F
+               RETURN Z
+               ADD s0, 01
+               OUTPUT s0, speed_wr_port ; store speed
+               RETURN
+               
+speed_down:    INPUT s0, speed_rd_port;fetch speed
+               COMPARE s0, 01
+               RETURN Z
+               SUB s0, 01
+               OUTPUT s0, speed_wr_port ; store speed  
+               RETURN              
+
+
+   
+   
+;********************************************          
+; Vsync refresh routine
+; draw keys in the ram
+; move keys in every interrupt
+;********************************************   
+
+vsync_routine: 
+               LOAD key_point, 00
+key_loop:      
+
+               CALL key_routine
+               
+               ADD key_point, 01
+               COMPARE key_point, 38 ; if key_point < 0x38
+               JUMP C, key_loop      ; do key_loop
+               ;LOAD main_flag, 00    ; else
+               RETURN             ; wait for next interrupt 
+              
+key_routine:  CALL get_addrc
+              JUMP  draw_keys
+
+              
+;************              
+;draw_keys: 
+;************
+draw_keys:
+;check first row/last row to set/unset move_column_flag
+check_key_point: LOAD s0, 07
+                 AND s0, key_point ; key_point AND 00000_0111, clear MSB 5 bits                
+                 COMPARE s0, 00
+                 JUMP NZ, check_key_point_last ; if not first row, check last row
+; if it's first row
+first_row_routie: FETCH vga_addrrh, (key_point) 
+                  COMPARE vga_addrrh, E0 ; if addrrh > E0, move_column_flag = 1
+                  JUMP NC, set_move_column_flag
+                  JUMP check_key_point_end  ; else
+                  
+set_move_column_flag: OR main_flag, 04 ;0000_0100
+                      ADD key_point, 01 ; skip display first row
+                      JUMP check_key_point_end
+                  
+check_key_point_last: COMPARE s0, 07
+                      JUMP Z, unset_move_column_flag ;if key_point = xxxx111
+                      JUMP check_key_point_end
+unset_move_column_flag: AND main_flag, FB ; 1111_1011
+                        JUMP check_key_point_end                     
+check_key_point_end:  JUMP display_operation
+
+;display operation
+display_operation: ; if addrrh = FF, Jump to addrrh_ff
+                   FETCH vga_addrrh, (key_point) 
+                   COMPARE vga_addrrh, FF
+                   JUMP Z, addrrh_ff ; if addrrh = FF
+                   ; if addrrh != FF,  
+                   ;   erase the previous block
+                   CALL draw_block0
+                   ;   Add "speed" after draw_block0
+add_speed:         FETCH vga_addrrh, (key_point) 
+                   INPUT s0, speed_rd_port
+                   ADD vga_addrrh, s0
+                   ; if move_column_flag == 1
+                   TEST main_flag, 04 
+                   JUMP C, store_move
+                   STORE vga_addrrh, (key_point)
+                   
+addrrh_D0:         
+                   ;FETCH vga_addrrh, (key_point) 
+                   ; it needn't reload vga_addrrh
+                   ; otherwise there will have problems 
+                   ;; if new addrrh < 0xD0 
+                   COMPARE vga_addrrh, D0 
+                   CALL C, draw_block1; if addrrh < D0, draw_block1
+                   RETURN
+
+                   ; Store the current vga_addrrh to previous key_point
+store_move:        LOAD s0, key_point
+                   SUB s0, 01
+                   STORE vga_addrrh, (s0)
+                   JUMP addrrh_D0
+                
+                                   
+                   
+addrrh_ff:         TEST main_flag, 04 ; if move_column_flag !== 1                    
+                   JUMP NC, move2next_column
+                   ;if move_column_flag == 1
+                   LOAD s0, key_point ;store FF to *(key_point - 1)
+                   SUB s0, 01
+                   LOAD s1, FF
+                   STORE s1, (s0)
+                   AND main_flag, FB ; unset move_column_flag
+                   ;also do move2next_column
+
+move2next_column:  LOAD s0, key_point
+                   AND s0, 3F
+                   SR0 s0
+                   SR0 s0
+                   SR0 s0
+                   ADD s0, 01
+                   SL0 s0
+                   SL0 s0
+                   SL0 s0
+                   LOAD key_point, s0 
+                   SUB key_point, 01 ; it will add 1 after return              
+              
+              
+key_routine_end:   ;LOAD main_flag, 00
+                   RETURN             ; wait for next interrupt
+
+
+
+
+;********************************************
+; vsync_routine's submodule
+;********************************************
+
+;draw_block submodule
+;Load vga_din to control draw/erase
+;Required data: vga_addrrh, vga_addrc
+;Call submodule: write_vga
+draw_block1: LOAD vga_din, 01   ; draw
+
+             CALL draw_block
+             
+             RETURN
+
+draw_block0: LOAD vga_din, 00   ; erase
+
+             CALL draw_block
+             RETURN             
+
+
+;draw_block submodule
+;Required data: vga_addrrh, vga_addrc
+;Call submodule: write_vga
+draw_block: LOAD s0, 00
+draw_loop:  ADD vga_addrrh, 01
+            CALL write_vga
+            ADD s0, 01
+            COMPARE s0, 03 ; 05 is the height of block              
+            JUMP C, draw_loop ;if s0 < 05, loop draw 
+            RETURN  ; else, return
+            
+; write_vga submodule
+; Required data: vga_addrrc, vga_addrrh                  
+write_vga: 
+
+
+           LOAD vga_addrrl, 00
+           OUTPUT vga_din   , vga_din_port
+           OUTPUT vga_addrc , vga_addrc_port
+           OUTPUT vga_addrrh, vga_addrrh_port
+           OUTPUT vga_addrrl, vga_addrrl_port
+           OUTPUT vga_addrrl, vga_we_port
+           LOAD vga_addrrl, 01
+           OUTPUT vga_addrrl, vga_addrrl_port
+           OUTPUT vga_addrrl, vga_we_port
+           RETURN        
+
+
+; get_addrc submodule
+; require data: key_point 
+; result data: vga_addrc          
+get_addrc: LOAD vga_addrc, key_point
+            AND vga_addrc, 3F ; clear the MSB 2 bits of addrch
+            SR0 vga_addrc
+            SR0 vga_addrc
+            SR0 vga_addrc
+            RETURN       
+            
+            
+;********************************************   
+; Audio drive        
+;********************************************                    
+audio_drive:   TEST main_flag, 40
+               JUMP C, audio_begin
+               RETURN
+               
+audio_begin:   LOAD s0, 01
+               OUTPUT s0, audio_out_en_port              
+               FETCH s0, audio_time_counter
+               ADD s0, 01
+               STORE s0, audio_time_counter
+               COMPARE s0, 09
+               JUMP NC, audio_end
+               RETURN
+               
+audio_end:    LOAD s0, 00
+              OUTPUT s0, audio_out_en_port
+              
+              STORE s0, audio_time_counter
+              AND main_flag, BF;1011_1111, unset flag
+              RETURN               
+
+
+
+
+;********************************************   
+; reset process        
+;******************************************** 
+
+
+;****** clear the video ram begin ***********
+clear_video_ram:   LOAD vga_din, 00
+                   LOAD vga_addrc, FF
+clear_video_loop:  ADD vga_addrc, 01
+                   CALL clear_addrrh_init
+                   COMPARE vga_addrc, 07
+                   JUMP C, clear_video_loop
+                   RETURN                          
+                 
+clear_addrrh_init:      LOAD vga_addrrh, FF    
+clear_addrrh_loop:      ADD vga_addrrh, 01
+                        CALL write_vga
+                        COMPARE vga_addrrh, FF               
+                        JUMP C, clear_addrrh_loop ;if s0 <= 05, loop draw
+                        CALL write_vga 
+                        RETURN  ; else, return
+;****** clear the video ram end ***********
+
+
+;****** clear score begin *********
+
+clear_score:      LOAD s1, 00
+                  LOAD sF, 00
+                  CALL wr_score
+                  LOAD s1, 00
+                  LOAD sF, 01
+                  CALL wr_score
+                  LOAD s1, 00
+                  LOAD sF, 02
+                  CALL wr_score
+                  LOAD s1, 00
+                  LOAD sF, 03
+                  CALL wr_score
+                  RETURN 
+;****** clear score end ***********
+
+
+
+
+
+
+;********************************************
+; Interrupt routin
+;********************************************
+
+
+             ADDRESS 2B0
+   main:
+         CALL  kbd_get_data
+         CALL  musicbox_get_data
+         CALL  vsync_routine
+         CALL audio_drive
+         FETCH s0, score3
+         OUTPUT s0, uart_tx_port
+         FETCH s0, score2
+         OUTPUT s0, uart_tx_port
+         FETCH s0, score1
+         OUTPUT s0, uart_tx_port
+         FETCH s0, score0
+         OUTPUT s0, uart_tx_port
+         
+         ;CALL clear_video_ram
+         
+         RETURNI ENABLE
+
+int_vector:  ADDRESS 3FF                            ;set interrupt vector
+             JUMP main
+
