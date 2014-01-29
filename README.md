@@ -33,12 +33,12 @@ Double Click demo/quick_demo.bat. It will use impact to download bit file.
 
 
 
-### Archieve structure ###
-/source			.v .xco .coe and .ucf source files for the project
-/implementation
-++picoVOS.bit		pre-build bit file
+### Archive structure ###
+/source			.v .xco .coe and .ucf source files for the project  
+/implementation  
+++picoVOS.bit		pre-build bit file  
 ++run.bat		For windows users, double click it will copy source files
-			to work directory, generate the cores and the ISE roject
-++run.sh		For Linux users. Function is the same as the windows one
+			to work directory, generate the cores and the ISE roject  
+++run.sh		For Linux users. Function is the same as the windows one  
 ++build_project.tcl	ISE project generation script
 
